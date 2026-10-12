@@ -58,3 +58,7 @@ database
 >>>Введите команду: create_table users age:float
 Некорректное значение: age:float. Попробуйте снова.
 ```
+
+## Демонстрация
+
+[![asciicast](https://asciinema.org/a/BvXVxO0B5YW4162J.svg)](https://asciinema.org/a/BvXVxO0B5YW4162J)
