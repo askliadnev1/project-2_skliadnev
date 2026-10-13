@@ -16,7 +16,7 @@ uv run database
 
 ```
 uv build
-uv tool install dist/primitive_db-0.2.0-py3-none-any.whl
+uv tool install dist/primitive_db-0.3.0-py3-none-any.whl
 database
 ```
 
