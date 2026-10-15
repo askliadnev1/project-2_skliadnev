@@ -106,4 +106,4 @@ database
 
 ```## Демонстрация
 
-[![asciicast](https://asciinema.org/a/BvXVxO0B5YW4162J.svg)](https://asciinema.org/a/BvXVxO0B5YW4162J)
+[![asciicast](https://asciinema.org/a/668Cja1uPhbTV2Z8.svg)](https://asciinema.org/a/668Cja1uPhbTV2Z8)
