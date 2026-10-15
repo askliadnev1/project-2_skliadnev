@@ -137,6 +137,12 @@ database
 - Для операций `insert` и `select` выводится время выполнения: `Функция select выполнилась за 0.001 секунд.`
 - Результаты одинаковых запросов `select` кэшируются. Кэш сам перестаёт использоваться, когда данные таблицы меняются.
 
-```## Демонстрация
+## Демонстрация
+
+CRUD-операции:
 
 [![asciicast](https://asciinema.org/a/668Cja1uPhbTV2Z8.svg)](https://asciinema.org/a/668Cja1uPhbTV2Z8)
+
+Обработка ошибок, подтверждение действий и замер времени:
+
+[![asciicast](https://asciinema.org/a/wCHr53WquzTOLNkD.svg)](https://asciinema.org/a/wCHr53WquzTOLNkD)
