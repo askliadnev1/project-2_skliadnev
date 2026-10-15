@@ -4,16 +4,19 @@ import prompt
 from prettytable import PrettyTable
 
 from primitive_db.core import (
+    check_table_exists,
     create_table,
     delete,
     drop_table,
     format_columns,
     insert,
     list_tables,
+    matches,
     select,
     update,
     validate_clause,
 )
+from primitive_db.decorators import handle_db_errors
 from primitive_db.parser import parse_condition, parse_values
 from primitive_db.utils import (
     delete_table_data,
@@ -61,14 +64,6 @@ def print_help():
     print("<command> help - справочная информация\n")
 
 
-def table_exists(metadata, table_name):
-    """Проверяет, что таблица есть; если нет, печатает ошибку."""
-    if table_name in metadata:
-        return True
-    print(f'Ошибка: Таблица "{table_name}" не существует.')
-    return False
-
-
 def print_table(metadata, table_name, rows):
     """Выводит записи таблицей через prettytable."""
     if not rows:
@@ -82,6 +77,11 @@ def print_table(metadata, table_name, rows):
     print(table)
 
 
+def find_ids(table_data, where_clause):
+    """ID записей, подходящих под условие."""
+    return [record["ID"] for record in table_data if matches(record, where_clause)]
+
+
 def split_from_where(user_input):
     """'select from users where age = 28' -> ('users', {'age': 28})."""
     parts = user_input.split(maxsplit=4)
@@ -92,6 +92,36 @@ def split_from_where(user_input):
     raise ValueError(user_input)
 
 
+@handle_db_errors
+def split_command(user_input):
+    """Разбивает введённую строку на слова с учётом кавычек."""
+    return shlex.split(user_input)
+
+
+@handle_db_errors
+def handle_create_table(metadata, args):
+    """create_table <таблица> <столбец:тип> ..."""
+    if len(args) < 3:
+        raise ValueError(" ".join(args))
+    result = create_table(metadata, args[1], args[2:])
+    if result is not None:
+        save_metadata(META_FILE, result)
+
+
+@handle_db_errors
+def handle_drop_table(metadata, args):
+    """drop_table <таблица>."""
+    if len(args) != 2:
+        raise ValueError(" ".join(args))
+    table_name = args[1]
+    check_table_exists(metadata, table_name)
+    result = drop_table(metadata, table_name)
+    if result is not None:
+        save_metadata(META_FILE, result)
+        delete_table_data(table_name)
+
+
+@handle_db_errors
 def handle_insert(metadata, user_input):
     """insert into <таблица> values (...)."""
     parts = user_input.split(maxsplit=4)
@@ -103,17 +133,18 @@ def handle_insert(metadata, user_input):
         save_table_data(table_name, table_data)
 
 
+@handle_db_errors
 def handle_select(metadata, user_input):
     """select from <таблица> [where <столбец> = <значение>]."""
     table_name, where_clause = split_from_where(user_input)
-    if not table_exists(metadata, table_name):
-        return
+    check_table_exists(metadata, table_name)
     if where_clause is not None:
         validate_clause(metadata, table_name, where_clause)
     rows = select(load_table_data(table_name), where_clause)
     print_table(metadata, table_name, rows)
 
 
+@handle_db_errors
 def handle_update(metadata, user_input):
     """update <таблица> set <столбец> = <значение> where <столбец> = <значение>."""
     parts = user_input.split(maxsplit=3)
@@ -127,101 +158,90 @@ def handle_update(metadata, user_input):
     where_clause = parse_condition(where_text)
     if "ID" in set_clause:
         raise ValueError(set_text.strip())
-    if not table_exists(metadata, table_name):
-        return
+    check_table_exists(metadata, table_name)
     validate_clause(metadata, table_name, set_clause)
     validate_clause(metadata, table_name, where_clause)
 
     table_data = load_table_data(table_name)
-    found_ids = [record["ID"] for record in select(table_data, where_clause)]
+    found_ids = find_ids(table_data, where_clause)
     if not found_ids:
         print("Записи не найдены.")
         return
-    save_table_data(table_name, update(table_data, set_clause, where_clause))
+    new_data = update(table_data, set_clause, where_clause)
+    if new_data is None:
+        return
+    save_table_data(table_name, new_data)
     for record_id in found_ids:
         print(f'Запись с ID={record_id} в таблице "{table_name}" успешно обновлена.')
 
 
+@handle_db_errors
 def handle_delete(metadata, user_input):
     """delete from <таблица> where <столбец> = <значение>."""
     table_name, where_clause = split_from_where(user_input)
     if where_clause is None:
         raise ValueError(user_input)
-    if not table_exists(metadata, table_name):
-        return
+    check_table_exists(metadata, table_name)
     validate_clause(metadata, table_name, where_clause)
 
     table_data = load_table_data(table_name)
-    found_ids = [record["ID"] for record in select(table_data, where_clause)]
+    found_ids = find_ids(table_data, where_clause)
     if not found_ids:
         print("Записи не найдены.")
         return
-    save_table_data(table_name, delete(table_data, where_clause))
+    new_data = delete(table_data, where_clause)
+    if new_data is None:
+        return
+    save_table_data(table_name, new_data)
     for record_id in found_ids:
         print(f'Запись с ID={record_id} успешно удалена из таблицы "{table_name}".')
 
 
+@handle_db_errors
 def handle_info(metadata, args):
     """info <таблица>."""
     if len(args) != 2:
         raise ValueError(" ".join(args))
     table_name = args[1]
-    if not table_exists(metadata, table_name):
-        return
+    check_table_exists(metadata, table_name)
     print(f"Таблица: {table_name}")
     print(f"Столбцы: {format_columns(metadata[table_name])}")
     print(f"Количество записей: {len(load_table_data(table_name))}")
 
 
 def run():
-    """Главный цикл программы: читает команды и вызывает функции из core."""
+    """Главный цикл программы: читает команды и вызывает обработчики."""
     print("***База данных***")
     print_help()
 
     while True:
         metadata = load_metadata(META_FILE)
         user_input = prompt.string(">>>Введите команду: ").strip()
-
-        try:
-            args = shlex.split(user_input)
-        except ValueError:
-            print(f"Некорректное значение: {user_input}. Попробуйте снова.")
-            continue
+        args = split_command(user_input)
         if not args:
             continue
 
-        command, *params = args
-        try:
-            match command:
-                case "create_table" if len(params) >= 2:
-                    result = create_table(metadata, params[0], params[1:])
-                    if result is not None:
-                        save_metadata(META_FILE, result)
-                case "drop_table" if len(params) == 1:
-                    result = drop_table(metadata, params[0])
-                    if result is not None:
-                        save_metadata(META_FILE, result)
-                        delete_table_data(params[0])
-                case "list_tables":
-                    list_tables(metadata)
-                case "insert":
-                    handle_insert(metadata, user_input)
-                case "select":
-                    handle_select(metadata, user_input)
-                case "update":
-                    handle_update(metadata, user_input)
-                case "delete":
-                    handle_delete(metadata, user_input)
-                case "info":
-                    handle_info(metadata, args)
-                case "help":
-                    print_help()
-                case "exit":
-                    break
-                case "create_table" | "drop_table":
-                    raise ValueError(user_input)
-                case _:
-                    print(f"Функции {command} нет. Попробуйте снова.")
-        except ValueError as error:
-            print(f"Некорректное значение: {error}. Попробуйте снова.")
+        match args[0]:
+            case "create_table":
+                handle_create_table(metadata, args)
+            case "drop_table":
+                handle_drop_table(metadata, args)
+            case "list_tables":
+                list_tables(metadata)
+            case "insert":
+                handle_insert(metadata, user_input)
+            case "select":
+                handle_select(metadata, user_input)
+            case "update":
+                handle_update(metadata, user_input)
+            case "delete":
+                handle_delete(metadata, user_input)
+            case "info":
+                handle_info(metadata, args)
+            case "help":
+                print_help()
+            case "exit":
+                break
+            case _:
+                print(f"Функции {args[0]} нет. Попробуйте снова.")
         print()
