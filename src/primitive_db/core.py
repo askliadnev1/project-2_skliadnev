@@ -1,3 +1,4 @@
+from primitive_db.constants import VALID_TYPES
 from primitive_db.decorators import (
     confirm_action,
     create_cacher,
@@ -5,8 +6,6 @@ from primitive_db.decorators import (
     log_time,
 )
 from primitive_db.utils import load_table_data
-
-VALID_TYPES = {"int": int, "str": str, "bool": bool}
 
 select_cache = create_cacher()
 
