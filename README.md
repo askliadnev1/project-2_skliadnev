@@ -162,4 +162,4 @@ src/primitive_db/
 
 ## Демонстрация
 
-[![asciicast](https://asciinema.org/a/668Cja1uPhbTV2Z8.svg)](https://asciinema.org/a/668Cja1uPhbTV2Z8)
+[![asciicast](https://asciinema.org/a/lbGsvt2ln93qeh9m.svg)](https://asciinema.org/a/lbGsvt2ln93qeh9m)
